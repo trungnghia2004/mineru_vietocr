@@ -1,0 +1,10 @@
+cropped_data
+output
+__pycache__
+*/__pycache__
+*/*/__pycache__
+*/*/*/__pycache__
+.vscode
+uploads
+crop_text_regions.py
+label_studio_to_vietocr_converter.py
