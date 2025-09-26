@@ -86,6 +86,8 @@ class PytorchPaddleOCR(TextSystem):
         rec_model_path = f"{ocr_models_dir}/{rec}"
         rec_model_path = os.path.join(auto_download_and_get_model_root_path(rec_model_path), rec_model_path)
         
+        # print(f"Using OCR models: det={det_model_path}, rec={rec_model_path}, dict={dict_file}")
+        
         # Update kwargs for TextRecognizer
         kwargs['det_model_path'] = det_model_path
         kwargs['rec_model_path'] = rec_model_path
@@ -119,7 +121,7 @@ class PytorchPaddleOCR(TextSystem):
             tqdm_desc="OCR-rec Predict",
             ):
         assert isinstance(img, (np.ndarray, list, str, bytes))
-        if isinstance(img, list) and det == True:
+        if isinstance(img, list) and det:
             logger.error('When input a list of images, det must be false')
             exit(0)
         img = check_img(img)
