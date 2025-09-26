@@ -20,14 +20,14 @@ def __is_hyphen_at_line_end(line):
     return bool(re.search(r'[A-Za-z]+-\s*$', line))
 
 
-def make_blocks_to_markdown(paras_of_layout,
-                                      mode,
-                                      img_buket_path='',
-                                      ):
+def make_blocks_to_markdown(paras_of_layout, mode, page_idx, img_buket_path=''):
     page_markdown = []
+    page_content = []
+    
     for para_block in paras_of_layout:
         para_text = ''
         para_type = para_block['type']
+        
         if para_type in [BlockType.TEXT, BlockType.LIST, BlockType.INDEX]:
             para_text = merge_para_with_text(para_block)
         elif para_type == BlockType.TITLE:
@@ -39,65 +39,63 @@ def make_blocks_to_markdown(paras_of_layout,
             if para_block['lines'][0]['spans'][0].get('content', ''):
                 para_text = merge_para_with_text(para_block)
             else:
-                para_text += f"![]({img_buket_path}/{para_block['lines'][0]['spans'][0]['image_path']})"
+                para_text = f"![]({img_buket_path}/{para_block['lines'][0]['spans'][0]['image_path']})"
         elif para_type == BlockType.IMAGE:
             if mode == MakeMode.NLP_MD:
                 continue
             elif mode == MakeMode.MM_MD:
-                # 检测是否存在图片脚注
                 has_image_footnote = any(block['type'] == BlockType.IMAGE_FOOTNOTE for block in para_block['blocks'])
-                # 如果存在图片脚注，则将图片脚注拼接到图片正文后面
                 if has_image_footnote:
-                    for block in para_block['blocks']:  # 1st.拼image_caption
+                    for block in para_block['blocks']:
                         if block['type'] == BlockType.IMAGE_CAPTION:
                             para_text += merge_para_with_text(block) + '  \n'
-                    for block in para_block['blocks']:  # 2nd.拼image_body
+                    for block in para_block['blocks']:
                         if block['type'] == BlockType.IMAGE_BODY:
                             for line in block['lines']:
                                 for span in line['spans']:
                                     if span['type'] == ContentType.IMAGE:
                                         if span.get('image_path', ''):
                                             para_text += f"![]({img_buket_path}/{span['image_path']})"
-                    for block in para_block['blocks']:  # 3rd.拼image_footnote
+                    for block in para_block['blocks']:
                         if block['type'] == BlockType.IMAGE_FOOTNOTE:
                             para_text += '  \n' + merge_para_with_text(block)
                 else:
-                    for block in para_block['blocks']:  # 1st.拼image_body
+                    for block in para_block['blocks']:
                         if block['type'] == BlockType.IMAGE_BODY:
                             for line in block['lines']:
                                 for span in line['spans']:
                                     if span['type'] == ContentType.IMAGE:
                                         if span.get('image_path', ''):
                                             para_text += f"![]({img_buket_path}/{span['image_path']})"
-                    for block in para_block['blocks']:  # 2nd.拼image_caption
+                    for block in para_block['blocks']:
                         if block['type'] == BlockType.IMAGE_CAPTION:
                             para_text += '  \n' + merge_para_with_text(block)
         elif para_type == BlockType.TABLE:
             if mode == MakeMode.NLP_MD:
                 continue
             elif mode == MakeMode.MM_MD:
-                for block in para_block['blocks']:  # 1st.拼table_caption
+                for block in para_block['blocks']:
                     if block['type'] == BlockType.TABLE_CAPTION:
                         para_text += merge_para_with_text(block) + '  \n'
-                for block in para_block['blocks']:  # 2nd.拼table_body
+                for block in para_block['blocks']:
                     if block['type'] == BlockType.TABLE_BODY:
                         for line in block['lines']:
                             for span in line['spans']:
                                 if span['type'] == ContentType.TABLE:
-                                    # if processed by table model
                                     if span.get('html', ''):
                                         para_text += f"\n{span['html']}\n"
                                     elif span.get('image_path', ''):
                                         para_text += f"![]({img_buket_path}/{span['image_path']})"
-                for block in para_block['blocks']:  # 3rd.拼table_footnote
+                for block in para_block['blocks']:
                     if block['type'] == BlockType.TABLE_FOOTNOTE:
                         para_text += '\n' + merge_para_with_text(block) + '  '
 
-        if para_text.strip() == '':
-            continue
-        else:
-            # page_markdown.append(para_text.strip() + '  ')
-            page_markdown.append(para_text.strip())
+        if para_text.strip():
+            page_content.append(para_text.strip())
+
+    if page_content:  
+        page_markdown.append(f"<<<< Page {page_idx + 1} >>>>")
+        page_markdown.extend(page_content)
 
     return page_markdown
 
@@ -182,6 +180,7 @@ def merge_para_with_text(para_block):
                             para_text += f'{content} '
                     elif span_type == ContentType.INTERLINE_EQUATION:
                         para_text += content
+                        
             else:
                 continue
 
@@ -270,10 +269,14 @@ def union_make(pdf_info_dict: list,
         paras_of_layout = page_info.get('para_blocks')
         page_idx = page_info.get('page_idx')
         page_size = page_info.get('page_size')
+        
+        print('page_idx', page_idx)
+        
         if not paras_of_layout:
             continue
         if make_mode in [MakeMode.MM_MD, MakeMode.NLP_MD]:
-            page_markdown = make_blocks_to_markdown(paras_of_layout, make_mode, img_buket_path)
+            print('markdown', page_idx)
+            page_markdown = make_blocks_to_markdown(paras_of_layout, make_mode,page_idx, img_buket_path)
             output_content.extend(page_markdown)
         elif make_mode == MakeMode.CONTENT_LIST:
             for para_block in paras_of_layout:
