@@ -207,14 +207,7 @@ def process_pipeline(
     return output_files
 
 
-# if __name__ == "__main__":
-#     pdf_path = r"D:\LabAI\OCR\MinerUN\MinerU\pdfs\g.pdf"
 
-#     try:
-#        do_parse("./output", [Path(pdf_path).stem], [read_fn(Path(pdf_path))], ["ch"],backend='pipeline'
-# )
-#     except Exception as e:
-#         logger.exception(e)
 
 
 def convert_to_pdf_bytes(file_bytes, suffix):
@@ -232,4 +225,54 @@ def prepare_output_dirs(base_dir, filename, method="auto"):
     os.makedirs(image_dir, exist_ok=True)
     os.makedirs(output_dir, exist_ok=True)
     return image_dir, output_dir
+def do_parse(
+        output_dir,
+        pdf_file_names: list[str],
+        pdf_bytes_list: list[bytes],
+        p_lang_list: list[str],
+        backend="pipeline",
+        parse_method="auto",
+        formula_enable=True,
+        table_enable=True,
+        server_url=None,
+        f_draw_layout_bbox=True,
+        f_draw_span_bbox=True,
+        f_dump_md=True,
+        f_dump_middle_json=True,
+        f_dump_model_output=True,
+        f_dump_orig_pdf=True,
+        f_dump_content_list=True,
+        f_make_md_mode=MakeMode.MM_MD,
+        start_page_id=0,
+        end_page_id=None,
+        **kwargs,
+):
+    pdf_bytes_list = prepare_pdf_bytes(pdf_bytes_list, start_page_id, end_page_id)
 
+    if backend == "pipeline":
+        process_pipeline(
+            output_dir, pdf_file_names, pdf_bytes_list, p_lang_list,
+            parse_method, formula_enable, table_enable,
+            f_draw_layout_bbox, f_draw_span_bbox, f_dump_md, f_dump_middle_json,
+            f_dump_model_output, f_dump_orig_pdf, f_dump_content_list, f_make_md_mode
+        )
+if __name__ == "__main__":
+    pdf_path = r"D:\LabAI\OCR\MinerUN\MinerU\pdfs\d.pdf"
+
+    try:
+        # Read the PDF file as bytes
+        pdf_path = Path(pdf_path)
+        with open(pdf_path, 'rb') as f:
+            pdf_bytes = f.read()
+        # Extract the suffix
+        suffix = pdf_path.suffix  # '.pdf'
+        # Call do_parse with the correct arguments
+        do_parse(
+            "./output",
+            [pdf_path.stem],  # e.g., ['e']
+            [read_fn(pdf_bytes, suffix)],  # Pass bytes and suffix
+            ["ch"],
+            backend='pipeline'
+        )
+    except Exception as e:
+        logger.exception(e)
