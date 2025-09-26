@@ -27,6 +27,7 @@ class TextSystem(object):
         points[:, 0] = points[:, 0] - left
         points[:, 1] = points[:, 1] - top
         '''
+        points = expand_bounding_box(np.array(points))
         img_crop_width = int(
             max(
                 np.linalg.norm(points[0] - points[1]),
@@ -102,3 +103,22 @@ def sorted_boxes(dt_boxes):
             _boxes[i] = _boxes[i + 1]
             _boxes[i + 1] = tmp
     return _boxes
+
+def expand_bounding_box(bbox, expand_ratio=0.2):
+    x_min = np.min(bbox[:, 0])
+    x_max = np.max(bbox[:, 0])
+    y_min = np.min(bbox[:, 1])
+    y_max = np.max(bbox[:, 1])
+
+    width = x_max - x_min
+    height = y_max - y_min
+
+    x_min_new = x_min - expand_ratio * width
+    x_max_new = x_max + expand_ratio * width
+    y_min_new = y_min - expand_ratio * height
+    y_max_new = y_max + expand_ratio * height
+    
+    new_box = np.array([[x_min_new, y_min_new], [x_max_new, y_min_new], 
+                        [x_max_new, y_max_new], [x_min_new, y_max_new]])
+    
+    return new_box
