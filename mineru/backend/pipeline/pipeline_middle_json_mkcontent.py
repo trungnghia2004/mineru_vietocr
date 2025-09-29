@@ -94,7 +94,7 @@ def make_blocks_to_markdown(paras_of_layout, mode, page_idx, img_buket_path=''):
             page_content.append(para_text.strip())
 
     if page_content:  
-        page_markdown.append(f"<< Page {page_idx + 1} >>")
+        page_markdown.append(f"<< page number: {page_idx + 1} >>")
         page_markdown.extend(page_content)
 
     return page_markdown
