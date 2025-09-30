@@ -20,16 +20,18 @@ def __is_hyphen_at_line_end(line):
     return bool(re.search(r'[A-Za-z]+-\s*$', line))
 
 
-def make_blocks_to_markdown(paras_of_layout, mode, page_idx, img_buket_path=''):
+def make_blocks_to_markdown(paras_of_layout,discard_block, mode, page_idx, img_buket_path=''):
     page_markdown = []
     page_content = []
-    
+    # print(discard_block)
+            
     for para_block in paras_of_layout:
         para_text = ''
         para_type = para_block['type']
         
         if para_type in [BlockType.TEXT, BlockType.LIST, BlockType.INDEX]:
             para_text = merge_para_with_text(para_block)
+
         elif para_type == BlockType.TITLE:
             title_level = get_title_level(para_block)
             para_text = f'{"#" * title_level} {merge_para_with_text(para_block)}'
@@ -92,7 +94,14 @@ def make_blocks_to_markdown(paras_of_layout, mode, page_idx, img_buket_path=''):
 
         if para_text.strip():
             page_content.append(para_text.strip())
-
+            
+    for para_block in discard_block:
+            para_text = ''
+            para_type = para_block['type']
+            para_text = merge_para_with_text(para_block)
+            if para_text.strip():
+                page_content.append(para_text.strip())
+                
     if page_content:  
         page_markdown.append(f"<< page number: {page_idx + 1} >>")
         page_markdown.extend(page_content)
@@ -269,14 +278,13 @@ def union_make(pdf_info_dict: list,
         paras_of_layout = page_info.get('para_blocks')
         page_idx = page_info.get('page_idx')
         page_size = page_info.get('page_size')
-        
-        print('page_idx', page_idx)
-        
+        discard_block = page_info.get('discarded_blocks', [])
+
         if not paras_of_layout:
             continue
         if make_mode in [MakeMode.MM_MD, MakeMode.NLP_MD]:
             print('markdown', page_idx)
-            page_markdown = make_blocks_to_markdown(paras_of_layout, make_mode,page_idx, img_buket_path)
+            page_markdown = make_blocks_to_markdown(paras_of_layout,discard_block, make_mode,page_idx, img_buket_path)
             output_content.extend(page_markdown)
         elif make_mode == MakeMode.CONTENT_LIST:
             for para_block in paras_of_layout:
