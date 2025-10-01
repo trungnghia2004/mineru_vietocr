@@ -12,7 +12,7 @@ from .enum_class import ImageType
 from .hash_utils import str_sha256
 
 
-def pdf_page_to_image(page: pdfium.PdfPage, dpi=200, image_type=ImageType.PIL) -> dict:
+def pdf_page_to_image(page: pdfium.PdfPage, dpi=300, image_type=ImageType.PIL) -> dict:
     """Convert pdfium.PdfDocument to image, Then convert the image to base64.
 
     Args:

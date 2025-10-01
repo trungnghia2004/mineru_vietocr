@@ -1,11 +1,15 @@
 import os
 import re
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Tuple
+from urllib.parse import urlparse, urlunparse
+
+import httpx
 from fastapi import FastAPI, File, UploadFile, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel, HttpUrl
 import uvicorn
 
 import sys
@@ -32,6 +36,9 @@ app.mount("/output", StaticFiles(directory=UPLOAD_FOLDER), name="output")
 
 # Templates
 templates = Jinja2Templates(directory="templates")
+
+class ProcessPdfLinkRequest(BaseModel):
+    url: HttpUrl
 
 def update_markdown_image_paths(markdown_content: str, base_url: str, pdf_name: str) -> str:
     """
@@ -68,6 +75,98 @@ def update_markdown_image_paths(markdown_content: str, base_url: str, pdf_name: 
 @app.get("/", response_class=HTMLResponse)
 async def serve_index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
+
+def _build_response_payload(output_files: Dict[str, Dict[str, str]]) -> Dict[str, Any]:
+    response_data: Dict[str, Dict[str, str]] = {}
+    for pdf_name, files in output_files.items():
+        response_data[pdf_name] = {}
+        for file_type, file_path in files.items():
+            if file_type in ["markdown", "content_list", "middle_json", "model_output"]:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    content = f.read()
+
+                if file_type == "markdown":
+                    content = update_markdown_image_paths(content, "", pdf_name)
+
+                response_data[pdf_name][file_type] = content
+            else:
+                rel_path = os.path.relpath(file_path, UPLOAD_FOLDER)
+                response_data[pdf_name][file_type] = rel_path
+
+    return {
+        "status": "success",
+        "files": response_data,
+        "message": "PDF processed successfully. Images are accessible via /output/ endpoints.",
+        "download_base": "/download/",
+        "static_base": "/output/"
+    }
+
+def _ensure_pdf_extension(path: str) -> str:
+    if not path.lower().endswith(".pdf"):
+        return f"{path}.pdf"
+    return path
+
+def _resolve_arxiv_pdf_url(url: str) -> str:
+    parsed = urlparse(url)
+    netloc = parsed.netloc.lower()
+
+    if netloc.endswith("arxiv.org"):
+        path = parsed.path
+        if path.startswith("/abs/"):
+            pdf_path = _ensure_pdf_extension(path.replace("/abs/", "/pdf/", 1))
+            parsed = parsed._replace(path=pdf_path, query="", fragment="")
+        elif path.startswith("/pdf/"):
+            pdf_path = _ensure_pdf_extension(path)
+            parsed = parsed._replace(path=pdf_path, query="", fragment="")
+        return urlunparse(parsed)
+
+    return url
+
+def _extract_filename_from_headers(url: str, headers: Dict[str, str]) -> str:
+    content_disposition = headers.get("content-disposition")
+    if content_disposition:
+        matches = re.findall('filename="?([^";]+)"?', content_disposition)
+        if matches:
+            return matches[-1]
+
+    parsed = urlparse(url)
+    filename = os.path.basename(parsed.path)
+    if filename:
+        return filename
+    return "downloaded.pdf"
+
+async def _download_pdf(url: str) -> Tuple[bytes, str]:
+    normalized_url = url.strip()
+    if not normalized_url:
+        raise HTTPException(status_code=400, detail="URL must not be empty")
+
+    if not re.match(r"^https?://", normalized_url, re.IGNORECASE):
+        normalized_url = f"https://{normalized_url}"
+
+    resolved_url = _resolve_arxiv_pdf_url(normalized_url)
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=httpx.Timeout(60.0)) as client:
+            response = await client.get(resolved_url)
+            response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=exc.response.status_code, detail=f"Failed to download file: {exc}") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"Error downloading file: {exc}") from exc
+
+    content_type = response.headers.get("content-type", "").lower()
+    if "pdf" not in content_type and not resolved_url.lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="URL does not point to a PDF file")
+
+    pdf_bytes = response.content
+    if len(pdf_bytes) > MAX_FILE_SIZE:
+        raise HTTPException(status_code=413, detail="File too large. Maximum size is 50MB.")
+
+    filename = _extract_filename_from_headers(resolved_url, response.headers)
+    if not filename.lower().endswith(".pdf"):
+        filename = f"{Path(filename).stem}.pdf"
+
+    return pdf_bytes, filename
 
 @app.post("/process_pdf/")
 async def process_pdf(file: UploadFile = File(...)):
@@ -106,30 +205,39 @@ async def process_pdf(file: UploadFile = File(...)):
             f_make_md_mode=MakeMode.MM_MD
         )
 
-        response_data = {}
-        for pdf_name, files in output_files.items():
-            response_data[pdf_name] = {}
-            for file_type, file_path in files.items():
-                if file_type in ["markdown", "content_list", "middle_json", "model_output"]:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        content = f.read()
-                        
-                    # Update markdown to use static file URLs for images
-                    if file_type == "markdown":
-                        content = update_markdown_image_paths(content, "", pdf_name)
-                    
-                    response_data[pdf_name][file_type] = content
-                else:
-                    rel_path = os.path.relpath(file_path, UPLOAD_FOLDER)
-                    response_data[pdf_name][file_type] = rel_path
+        return JSONResponse(content=_build_response_payload(output_files))
 
-        return JSONResponse(content={
-            "status": "success",
-            "files": response_data,
-            "message": "PDF processed successfully. Images are accessible via /output/ endpoints.",
-            "download_base": "/download/",
-            "static_base": "/output/"
-        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/process_pdf_link/")
+async def process_pdf_link(payload: ProcessPdfLinkRequest):
+    try:
+        pdf_bytes, filename = await _download_pdf(str(payload.url))
+        pdf_file_name = Path(filename).stem
+
+        output_files = process_pipeline(
+            output_dir=UPLOAD_FOLDER,
+            pdf_file_names=[pdf_file_name],
+            pdf_bytes_list=[read_fn(pdf_bytes, ".pdf")],
+            p_lang_list=["ch"],
+            parse_method="auto",
+            p_formula_enable=True,
+            p_table_enable=True,
+            f_draw_layout_bbox=True,
+            f_draw_span_bbox=True,
+            f_dump_md=True,
+            f_dump_middle_json=True,
+            f_dump_model_output=True,
+            f_dump_orig_pdf=True,
+            f_dump_content_list=True,
+            f_make_md_mode=MakeMode.MM_MD
+        )
+
+        return JSONResponse(content=_build_response_payload(output_files))
 
     except HTTPException:
         raise
