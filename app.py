@@ -87,6 +87,7 @@ def _build_response_payload(output_files: Dict[str, Dict[str, str]]) -> Dict[str
 
                 if file_type == "markdown":
                     content = update_markdown_image_paths(content, "", pdf_name)
+                    return {"markdown": content}
 
                 response_data[pdf_name][file_type] = content
             else:
@@ -135,32 +136,18 @@ def _extract_filename_from_headers(url: str, headers: Dict[str, str]) -> str:
         return filename
     return "downloaded.pdf"
 
-async def _download_pdf(url: str) -> Tuple[bytes, str]:
+from requests import get
+def _download_pdf(url: str) -> Tuple[bytes, str]:
     normalized_url = url.strip()
     if not normalized_url:
         raise HTTPException(status_code=400, detail="URL must not be empty")
 
-    if not re.match(r"^https?://", normalized_url, re.IGNORECASE):
-        normalized_url = f"https://{normalized_url}"
-
     resolved_url = _resolve_arxiv_pdf_url(normalized_url)
 
-    try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=httpx.Timeout(60.0)) as client:
-            response = await client.get(resolved_url)
-            response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        raise HTTPException(status_code=exc.response.status_code, detail=f"Failed to download file: {exc}") from exc
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"Error downloading file: {exc}") from exc
-
-    content_type = response.headers.get("content-type", "").lower()
-    if "pdf" not in content_type and not resolved_url.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="URL does not point to a PDF file")
+    response = get(resolved_url, timeout=60, verify=False)
+    response.raise_for_status()
 
     pdf_bytes = response.content
-    if len(pdf_bytes) > MAX_FILE_SIZE:
-        raise HTTPException(status_code=413, detail="File too large. Maximum size is 50MB.")
 
     filename = _extract_filename_from_headers(resolved_url, response.headers)
     if not filename.lower().endswith(".pdf"):
@@ -216,7 +203,7 @@ async def process_pdf(file: UploadFile = File(...)):
 @app.post("/process_pdf_link/")
 async def process_pdf_link(payload: ProcessPdfLinkRequest):
     try:
-        pdf_bytes, filename = await _download_pdf(str(payload.url))
+        pdf_bytes, filename = _download_pdf(str(payload.url))
         pdf_file_name = Path(filename).stem
 
         output_files = process_pipeline(
