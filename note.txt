@@ -1,0 +1,7 @@
+sudo docker build -t mineru_vietocr:gpu -f Dockerfile.gpu .
+
+sudo docker run --gpus all -it --rm \
+  -p 8000:8000 \
+  -v $(pwd)/output:/app/output \
+  mineru_vietocr:gpu
+
