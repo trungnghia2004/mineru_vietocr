@@ -257,7 +257,7 @@ def do_parse(
             f_dump_model_output, f_dump_orig_pdf, f_dump_content_list, f_make_md_mode
         )
 if __name__ == "__main__":
-    pdf_path = r"D:\LabAI\OCR\MinerUN\MinerU\pdfs\d.pdf"
+    pdf_path = r"F:\temp\OCR\test\AIA\mineru_vietocr\input\79.TTr_BQLDA.CSDL To trinh Phe duyet thiet ke chi tiet va du toan_0001_Signed.pdf"
 
     try:
         # Read the PDF file as bytes
