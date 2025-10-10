@@ -2,16 +2,9 @@ import os
 import gdown
 import yaml
 import numpy as np
-import uuid
 import requests
-import tempfile
-import time
 import shutil
 from tqdm import tqdm
-import zipfile
-
-# Global cache for downloaded files to prevent re-downloading
-_downloaded_files_cache = {}
 
 
 def download_weights(uri, cached=None, md5=None, quiet=False):
@@ -90,7 +83,7 @@ def download_config(id):
         "resnet-transformer.yml": "1GG-WgC09jbSqslp_9u0Eu0Zoerc0ET8-",
         "vgg-convseq2seq.yml": "1xvsTk2WCKYU1af-IhmqDnJL_gEpJkzhC",
         "vgg-seq2seq.yml": "1e9Ypb_U4XUpC2Q9d71Ymosm-I6m7GNGF",
-        "vgg-transformer.yml": "1lUjyYR8DXWCX11Yeq0B6xq2AFCCJkND5",  
+        "vgg-transformer.yml": "1RYhh2dKmda-jwDv6fqjhY248A2_S8D8f",
     }
     
     # Check if we have the file ID for this config

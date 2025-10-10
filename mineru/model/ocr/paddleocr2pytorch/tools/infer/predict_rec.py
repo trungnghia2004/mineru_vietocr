@@ -15,7 +15,6 @@ class TextRecognizer:
         self.device = args.device if hasattr(args, 'device') else 'cuda' if torch.cuda.is_available() else 'cpu'
         vietocr_config = Cfg.load_config_from_name('vgg_transformer')
         vietocr_config['device'] = self.device
-        vietocr_config['cnn']['pretrained'] = True
         vietocr_config['predictor']['beamsearch'] = False
         self.text_recognizer = Predictor(vietocr_config)
         
