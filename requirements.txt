@@ -1,10 +1,8 @@
 Flask
 fastapi
-Flask
 uvicorn[standard]
 python-multipart
 jinja2
-httpx
 gdown==5.2.0
 mineru[core]
 vietocr @ git+https://github.com/hungtrieu07/vietocr

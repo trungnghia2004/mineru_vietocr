@@ -18,5 +18,5 @@ node_modules/
 *.log
 output/
 input/
-vietocr/downloaded_models/
 **/.ipynb_checkpoints/
+*.tar

@@ -8,3 +8,5 @@ __pycache__
 uploads
 crop_text_regions.py
 label_studio_to_vietocr_converter.py
+torch_models/*
+*.tar

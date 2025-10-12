@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Script to download all MinerU pipeline models from HuggingFace.
+Script to download all MinerU pipeline models from HuggingFace and PyTorch models.
 Run this on a machine with internet access before building the Docker image.
 
 Usage:
@@ -10,10 +10,16 @@ Usage:
 from huggingface_hub import snapshot_download
 import os
 import sys
+import urllib.request
 
 # Configuration
 PIPELINE_REPO = "opendatalab/PDF-Extract-Kit-1.0"
 LOCAL_MODELS_DIR = "./models_cache/pipeline"
+TORCH_MODELS_DIR = "../torch_models/checkpoints"
+
+# PyTorch model for VietOCR backbone
+PYTORCH_VGG19_URL = "https://download.pytorch.org/models/vgg19_bn-c79401a0.pth"
+PYTORCH_VGG19_FILE = "vgg19_bn-c79401a0.pth"
 
 # Model paths needed for pipeline mode (from ModelPath enum)
 MODEL_PATHS = [
@@ -28,14 +34,55 @@ MODEL_PATHS = [
     "models/OriCls/paddle_orientation_classification/PP-LCNet_x1_0_doc_ori.onnx",
 ]
 
+def download_pytorch_model():
+    """Download PyTorch VGG19 model for VietOCR"""
+    print("\n" + "=" * 70)
+    print("Downloading PyTorch VGG19 Backbone Model")
+    print("=" * 70)
+    
+    # Create directory
+    os.makedirs(TORCH_MODELS_DIR, exist_ok=True)
+    
+    output_path = os.path.join(TORCH_MODELS_DIR, PYTORCH_VGG19_FILE)
+    
+    # Check if already exists
+    if os.path.exists(output_path):
+        file_size = os.path.getsize(output_path) / (1024 * 1024)
+        print(f"\n✓ VGG19 model already exists: {output_path}")
+        print(f"  Size: {file_size:.1f} MB")
+        return
+    
+    print(f"\nDownloading from: {PYTORCH_VGG19_URL}")
+    print(f"Target: {output_path}")
+    print("Please wait... (~549 MB)\n")
+    
+    try:
+        def progress_hook(block_num, block_size, total_size):
+            downloaded = block_num * block_size
+            percent = min(100, downloaded * 100 / total_size)
+            downloaded_mb = downloaded / (1024 * 1024)
+            total_mb = total_size / (1024 * 1024)
+            print(f"\rProgress: {percent:.1f}% ({downloaded_mb:.1f}/{total_mb:.1f} MB)", end='', flush=True)
+        
+        urllib.request.urlretrieve(PYTORCH_VGG19_URL, output_path, reporthook=progress_hook)
+        print("\n\n✓ PyTorch VGG19 model downloaded successfully!")
+        
+    except Exception as e:
+        print(f"\n✗ Error downloading PyTorch model: {e}")
+        print("You can manually download it from:")
+        print(f"  {PYTORCH_VGG19_URL}")
+        print(f"And save it to: {output_path}")
+        raise
+
 def main():
     print("=" * 70)
-    print("MinerU Pipeline Models Downloader")
+    print("MinerU + VietOCR Models Downloader")
     print("=" * 70)
-    print(f"\nRepository: {PIPELINE_REPO}")
-    print(f"Target directory: {LOCAL_MODELS_DIR}")
-    print(f"Number of model components: {len(MODEL_PATHS)}")
-    print("\nModels to download:")
+    print(f"\nPipeline Repository: {PIPELINE_REPO}")
+    print(f"Pipeline Target: {LOCAL_MODELS_DIR}")
+    print(f"PyTorch Models Target: {TORCH_MODELS_DIR}")
+    print(f"\nNumber of MinerU components: {len(MODEL_PATHS)}")
+    print("\nMinerU models to download:")
     for i, path in enumerate(MODEL_PATHS, 1):
         print(f"  {i}. {path}")
     print("\n" + "=" * 70)
@@ -47,11 +94,12 @@ def main():
         patterns.append(path)
         patterns.append(path + "/*")
     
-    print("\nStarting download... This may take a while depending on your connection.")
-    print("(Models are approximately 5-10 GB total)\n")
+    print("\n[1/2] Downloading MinerU pipeline models...")
+    print("This may take a while depending on your connection.")
+    print("(Pipeline models are approximately 2.5 GB total)\n")
     
     try:
-        # Download all models at once
+        # Download all pipeline models at once
         cache_dir = snapshot_download(
             repo_id=PIPELINE_REPO,
             local_dir=LOCAL_MODELS_DIR,
@@ -61,28 +109,37 @@ def main():
         )
         
         print("\n" + "=" * 70)
-        print("✓ Models downloaded successfully!")
+        print("✓ MinerU pipeline models downloaded successfully!")
         print("=" * 70)
         print(f"\nModels location: {os.path.abspath(cache_dir)}")
-        print(f"\nYou can now build the Docker image with:")
-        print("  docker build -f Dockerfile.offline -t mineru-vietocr-offline:latest .")
-        print("\n")
         
-        # Try to show directory structure
-        if os.system("which tree > /dev/null 2>&1") == 0:
-            print("Downloaded structure:")
-            os.system(f"tree {LOCAL_MODELS_DIR} -L 3")
-        else:
-            print("\nTo see the directory structure, install 'tree' command or use:")
-            print(f"  ls -lR {LOCAL_MODELS_DIR}")
-            
     except Exception as e:
         print("\n" + "=" * 70)
-        print("✗ Error downloading models:")
+        print("✗ Error downloading MinerU models:")
         print("=" * 70)
         print(f"{str(e)}")
         print("\nPlease check your internet connection and try again.")
         sys.exit(1)
+    
+    # Download PyTorch model
+    print("\n[2/2] Downloading PyTorch VGG19 model for VietOCR...")
+    try:
+        download_pytorch_model()
+    except Exception as e:
+        print("\n⚠ Warning: PyTorch model download failed")
+        print("The Docker build will fail without this model.")
+        sys.exit(1)
+    
+    # Final summary
+    print("\n" + "=" * 70)
+    print("✓ ALL MODELS DOWNLOADED SUCCESSFULLY!")
+    print("=" * 70)
+    print("\nDownloaded:")
+    print(f"  • MinerU pipeline models: {os.path.abspath(LOCAL_MODELS_DIR)}")
+    print(f"  • PyTorch VGG19 model: {os.path.abspath(TORCH_MODELS_DIR)}")
+    print(f"\nYou can now build the Docker image with:")
+    print("  ./build_offline_image.sh")
+    print("\n")
 
 if __name__ == "__main__":
     main()

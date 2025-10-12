@@ -2,10 +2,12 @@ FROM python:3.12-slim
 
 # Prevent Python from writing .pyc files and ensure unbuffered output
 # Set MinerU to use local models instead of downloading
+# Force CPU-only mode to avoid CUDA dependencies
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     MINERU_MODEL_SOURCE=local \
-    MINERU_TOOLS_CONFIG_JSON=/app/mineru.json
+    MINERU_TOOLS_CONFIG_JSON=/app/mineru.json \
+    MINERU_DEVICE_MODE=cpu
 
 WORKDIR /app
 
@@ -22,7 +24,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy requirements and install Python dependencies
 COPY requirements.txt /app/requirements.txt
+# Install CPU-only PyTorch first to avoid downloading CUDA versions
 RUN pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu && \
     pip install --no-cache-dir -r requirements.txt
 
 # Copy the pre-downloaded models into the container
@@ -32,8 +36,19 @@ COPY test_offline/models_cache/pipeline /app/models/pipeline
 # Copy the configuration file that points to local models
 COPY test_offline/mineru.json /app/mineru.json
 
-# Copy application source code
-COPY . .
+# Copy VietOCR config and pre-downloaded models
+COPY vietocr/config /app/vietocr/config
+COPY vietocr/downloaded_models /app/vietocr/downloaded_models
+
+# Copy PyTorch VGG19 backbone model for VietOCR
+RUN mkdir -p /root/.cache/torch/hub/checkpoints
+COPY torch_models/checkpoints/vgg19_bn-c79401a0.pth /root/.cache/torch/hub/checkpoints/vgg19_bn-c79401a0.pth
+
+# Copy application source code (only necessary files, not entire workspace)
+COPY mineru /app/mineru
+COPY vietocr/vietocr /app/vietocr/vietocr
+COPY app.py /app/
+COPY templates /app/templates
 
 # Ensure output directory exists (can be mounted as volume at runtime)
 RUN mkdir -p output
