@@ -19,8 +19,10 @@ class TextRecognizer:
         self.text_recognizer = Predictor(vietocr_config)
         
         # Batch processing parameters
-        self.rec_batch_num = args.rec_batch_num if hasattr(args, 'rec_batch_num') else 6
+        self.rec_batch_num = 32
         self.rec_image_shape = [3, 32, 512]  # Default VietOCR input shape: [channels, height, width]
+
+        print(self.rec_batch_num)
         
 
     def __call__(self, img_list, tqdm_enable=False, tqdm_desc="OCR-rec Predict"):
@@ -83,18 +85,22 @@ class TextRecognizer:
                 # Convert to PIL Images for VietOCR
                 pil_images = pil_image_batch
                 
-                # Predict with VietOCR
-                batch_results = []
-                for pil_img in pil_images:
-                    try:
-                        text, prob = self.text_recognizer.predict(pil_img, return_prob=True)
-                        if prob is None:
-                            logger.success(f"VietOCR: {text}")
-                            prob = 0.9
-                    except Exception as e:
-                        logger.error(f"VietOCR prediction failed: {str(e)}")
-                        text, prob = '', 0.9
-                    batch_results.append([text, prob])
+                # Predict with VietOCR using batch prediction
+                try:
+                    texts, probs = self.text_recognizer.predict_batch(pil_images, return_prob=True)
+                    batch_results = [[text, prob if prob is not None else 0.9] for text, prob in zip(texts, probs)]
+                except Exception as e:
+                    logger.error(f"VietOCR batch prediction failed: {str(e)}, falling back to individual predictions")
+                    batch_results = []
+                    for pil_img in pil_images:
+                        try:
+                            text, prob = self.text_recognizer.predict(pil_img, return_prob=True)
+                            if prob is None:
+                                prob = 0.9
+                        except Exception as e2:
+                            logger.error(f"VietOCR prediction failed: {str(e2)}")
+                            text, prob = '', 0.9
+                        batch_results.append([text, prob])
                 
                 for rno, result in enumerate(batch_results):
                     rec_res[batch_indices[rno]] = result

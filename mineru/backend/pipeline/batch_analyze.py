@@ -13,12 +13,12 @@ from ...utils.ocr_utils import merge_det_boxes, update_det_boxes, sorted_boxes
 from ...utils.ocr_utils import get_adjusted_mfdetrec_res, get_ocr_result_list, OcrConfidence, get_rotate_crop_image
 from ...utils.pdf_image_tools import get_crop_np_img
 
-YOLO_LAYOUT_BASE_BATCH_SIZE = 1
-MFD_BASE_BATCH_SIZE = 1
-MFR_BASE_BATCH_SIZE = 16
-OCR_DET_BASE_BATCH_SIZE = 16
-TABLE_ORI_CLS_BATCH_SIZE = 16
-TABLE_Wired_Wireless_CLS_BATCH_SIZE = 16
+YOLO_LAYOUT_BASE_BATCH_SIZE = 4
+MFD_BASE_BATCH_SIZE = 4
+MFR_BASE_BATCH_SIZE = 32
+OCR_DET_BASE_BATCH_SIZE = 32
+TABLE_ORI_CLS_BATCH_SIZE = 32
+TABLE_Wired_Wireless_CLS_BATCH_SIZE = 32
 
 class BatchAnalyze:
     def __init__(self, model_manager, batch_ratio: int, formula_enable, table_enable, enable_ocr_det_batch: bool = True):
