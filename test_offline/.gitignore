@@ -1,0 +1,12 @@
+# Ignore downloaded models
+models_cache/
+
+# Ignore saved Docker images
+*.tar
+*.tar.gz
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+

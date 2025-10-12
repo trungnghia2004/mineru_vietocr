@@ -16,6 +16,8 @@ def auto_download_and_get_model_root_path(relative_path: str, repo_mode='pipelin
     """
     model_source = os.getenv('MINERU_MODEL_SOURCE', "huggingface")
 
+    print(f"model_source: {model_source}")
+
     if model_source == 'local':
         local_models_config = get_local_models_dir()
         root_path = local_models_config.get(repo_mode, None)

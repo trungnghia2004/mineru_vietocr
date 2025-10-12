@@ -1,0 +1,7 @@
+{
+  "models-dir": {
+    "pipeline": "/app/models/pipeline",
+    "vlm": "/app/models/vlm"
+  }
+}
+

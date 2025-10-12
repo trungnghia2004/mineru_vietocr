@@ -84,6 +84,7 @@ def download_config(id):
         "vgg-convseq2seq.yml": "1xvsTk2WCKYU1af-IhmqDnJL_gEpJkzhC",
         "vgg-seq2seq.yml": "1e9Ypb_U4XUpC2Q9d71Ymosm-I6m7GNGF",
         "vgg-transformer.yml": "1RYhh2dKmda-jwDv6fqjhY248A2_S8D8f",
+        
     }
     
     # Check if we have the file ID for this config
