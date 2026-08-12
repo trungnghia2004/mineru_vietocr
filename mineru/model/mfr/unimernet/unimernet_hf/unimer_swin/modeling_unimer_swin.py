@@ -181,8 +181,7 @@ class UnimerSwinEmbeddings(nn.Module):
         This method allows to interpolate the pre-trained position encodings, to be able to use the model on higher
         resolution images.
 
-        Source:
-        https://github.com/facebookresearch/dino/blob/de9ee3df6cf39fac952ab558447af1fa1365362a/vision_transformer.py#L174
+        Source: upstream DINO vision transformer implementation.
         """
 
         num_patches = embeddings.shape[1] - 1
@@ -195,7 +194,7 @@ class UnimerSwinEmbeddings(nn.Module):
         h0 = height // self.config.patch_size
         w0 = width // self.config.patch_size
         # we add a small number to avoid floating point error in the interpolation
-        # see discussion at https://github.com/facebookresearch/dino/issues/8
+        # see upstream discussion on the interpolation offset detail
         h0, w0 = h0 + 0.1, w0 + 0.1
         patch_pos_embed = patch_pos_embed.reshape(1, int(math.sqrt(num_positions)), int(math.sqrt(num_positions)), dim)
         patch_pos_embed = patch_pos_embed.permute(0, 3, 1, 2)
@@ -384,7 +383,7 @@ def drop_path(input: torch.Tensor, drop_prob: float = 0.0, training: bool = Fals
 
     Comment by Ross Wightman: This is the same as the DropConnect impl I created for EfficientNet, etc networks,
     however, the original name is misleading as 'Drop Connect' is a different form of dropout in a separate paper...
-    See discussion: https://github.com/tensorflow/tpu/issues/494#issuecomment-532968956 ... I've opted for changing the
+    See upstream discussion on stochastic depth naming ... I've opted for changing the
     layer and argument names to 'drop path' rather than mix DropConnect as a layer name and use 'survival rate' as the
     argument.
     """
@@ -939,7 +938,7 @@ class UnimerSwinPreTrainedModel(PreTrainedModel):
         """Initialize the weights"""
         if isinstance(module, (nn.Linear, nn.Conv2d)):
             # Slightly different from the TF version which uses truncated_normal for initialization
-            # cf https://github.com/pytorch/pytorch/pull/5617
+            # matches the upstream PyTorch initialization detail
             module.weight.data.normal_(mean=0.0, std=self.config.initializer_range)
             if module.bias is not None:
                 module.bias.data.zero_()

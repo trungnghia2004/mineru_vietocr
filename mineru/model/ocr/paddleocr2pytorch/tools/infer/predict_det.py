@@ -241,7 +241,7 @@ class TextDetector(BaseOCRV20):
 
     def order_points_clockwise(self, pts):
         """
-        reference from: https://github.com/jrosebr1/imutils/blob/master/imutils/perspective.py
+        Reference: common perspective point ordering implementation.
         # sort the points based on their x-coordinates
         """
         xSorted = pts[np.argsort(pts[:, 0]), :]

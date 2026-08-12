@@ -356,7 +356,7 @@ class UnimerMBartFlashAttention2(UnimerMBartAttention):
         super().__init__(*args, **kwargs)
 
         # TODO: Should be removed once Flash Attention for RoCm is bumped to 2.1.
-        # flash_attn<2.1 generates top-left aligned causal mask, while what is needed here is bottom-right alignement, that was made default for flash_attn>=2.1. This attribute is used to handle this difference. Reference: https://github.com/Dao-AILab/flash-attention/releases/tag/v2.1.0.
+        # flash_attn<2.1 generates a top-left aligned causal mask, while this model needs bottom-right alignment.
         # Beware that with flash_attn<2.1, using q_seqlen != k_seqlen (except for the case q_seqlen == 1) produces a wrong mask (top-left).
         self._flash_attn_uses_top_left_mask = not is_flash_attn_greater_or_equal_2_10()
 
@@ -649,7 +649,7 @@ class UnimerMBartSdpaAttention(UnimerMBartAttention):
         is_causal = True if self.is_causal and attention_mask is None and tgt_len > 1 else False
 
         # NOTE: SDPA with memory-efficient backend is currently (torch==2.1.2) bugged when using non-contiguous inputs and a custom attn_mask,
-        # but we are fine here as `_shape` do call `.contiguous()`. Reference: https://github.com/pytorch/pytorch/issues/112577
+        # but we are fine here as `_shape` does call `.contiguous()`.
         attn_output = torch.nn.functional.scaled_dot_product_attention(
             query_states,
             key_states,

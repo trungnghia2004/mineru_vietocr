@@ -111,7 +111,7 @@ def process_output(
     if f_dump_md:
         md_content_str = pipeline_union_make(pdf_info, f_make_md_mode, image_dir)
         md_path = os.path.join(local_md_dir, f"{pdf_file_name}.md")
-        with open(md_path, 'w', encoding='utf-8') as f:
+        with open(md_path, 'w', encoding='utf-8-sig') as f:
             f.write(md_content_str)
         output_files["markdown"] = md_path
 

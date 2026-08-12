@@ -13,8 +13,10 @@ from tqdm import tqdm
 
 from .matcher import TableMatch
 from .table_structure import TableStructurer
+from mineru.utils.block_sort import predict_reading_order
 from mineru.utils.enum_class import ModelPath
 from mineru.utils.models_download_utils import auto_download_and_get_model_root_path
+from mineru.utils.vietnamese_postprocess import postprocess_ocr_text
 
 
 @dataclass
@@ -128,6 +130,13 @@ class RapidTable:
             box = [x_min, y_min, x_max, y_max]
             r_boxes.append(box)
         dt_boxes = np.array(r_boxes)
+        if len(dt_boxes) > 1:
+            try:
+                orders = predict_reading_order(dt_boxes.tolist(), w, h)
+                dt_boxes = np.array([dt_boxes[i] for i in orders])
+                rec_res = [rec_res[i] for i in orders]
+            except Exception as exc:
+                logger.debug(f"LayoutLMv3 table OCR ordering skipped: {exc}")
         return dt_boxes, rec_res
 
     def adapt_slanet_plus(self, img: np.ndarray, cell_bboxes: np.ndarray) -> np.ndarray:
@@ -165,7 +174,15 @@ class RapidTableModel(object):
         if not ocr_result:
             ocr_result = self.ocr_engine.ocr(bgr_image)[0]
             ocr_result = [
-                [item[0], escape_html(item[1][0]), item[1][1]]
+                [
+                    item[0],
+                    escape_html(
+                        postprocess_ocr_text(
+                            item[1][0], lang="vi", score=item[1][1], table_cell=True
+                        )
+                    ),
+                    item[1][1],
+                ]
                 for item in ocr_result
                 if len(item) == 2 and isinstance(item[1], tuple)
             ]

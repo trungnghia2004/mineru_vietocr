@@ -4,5 +4,6 @@ uvicorn[standard]
 python-multipart
 jinja2
 gdown==5.2.0
+onnxruntime-gpu==1.23.2
 mineru[core]
-vietocr @ git+https://github.com/hungtrieu07/vietocr
+./vietocr

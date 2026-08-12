@@ -1,5 +1,6 @@
 cropped_data
 output
+models_cache
 __pycache__
 */__pycache__
 */*/__pycache__

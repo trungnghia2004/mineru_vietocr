@@ -14,6 +14,29 @@ import uvicorn
 
 import sys
 import pypdfium2 as pdfium
+
+REPO_ROOT = Path(__file__).resolve().parent
+
+
+def _configure_local_model_source() -> None:
+    model_source = os.getenv("MINERU_MODEL_SOURCE")
+    if model_source not in (None, "local"):
+        return
+
+    local_pipeline_dir = REPO_ROOT / "models_cache" / "pipeline"
+    local_vlm_dir = REPO_ROOT / "models_cache" / "vlm"
+
+    if not local_pipeline_dir.exists():
+        return
+
+    os.environ.setdefault("MINERU_MODEL_SOURCE", "local")
+    os.environ.setdefault("MINERU_LOCAL_MODELS_DIR_PIPELINE", str(local_pipeline_dir))
+    if local_vlm_dir.exists():
+        os.environ.setdefault("MINERU_LOCAL_MODELS_DIR_VLM", str(local_vlm_dir))
+
+
+_configure_local_model_source()
+
 from mineru.cli.common import *
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
@@ -82,13 +105,11 @@ def _build_response_payload(output_files: Dict[str, Dict[str, str]]) -> Dict[str
         response_data[pdf_name] = {}
         for file_type, file_path in files.items():
             if file_type in ["markdown", "content_list", "middle_json", "model_output"]:
-                with open(file_path, "r", encoding="utf-8") as f:
+                with open(file_path, "r", encoding="utf-8-sig") as f:
                     content = f.read()
 
                 if file_type == "markdown":
                     content = update_markdown_image_paths(content, "", pdf_name)
-                    return {"markdown": content}
-
                 response_data[pdf_name][file_type] = content
             else:
                 rel_path = os.path.relpath(file_path, UPLOAD_FOLDER)
@@ -178,7 +199,7 @@ async def process_pdf(file: UploadFile = File(...)):
             output_dir=UPLOAD_FOLDER,
             pdf_file_names=[pdf_file_name],
             pdf_bytes_list=[pdf_bytes],
-            p_lang_list=["ch"],
+            p_lang_list=["vi"],
             parse_method="auto",
             p_formula_enable=True,
             p_table_enable=True,
@@ -210,7 +231,7 @@ async def process_pdf_link(payload: ProcessPdfLinkRequest):
             output_dir=UPLOAD_FOLDER,
             pdf_file_names=[pdf_file_name],
             pdf_bytes_list=[read_fn(pdf_bytes, ".pdf")],
-            p_lang_list=["ch"],
+            p_lang_list=["vi"],
             parse_method="auto",
             p_formula_enable=True,
             p_table_enable=True,

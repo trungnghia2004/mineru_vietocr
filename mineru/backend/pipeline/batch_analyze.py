@@ -12,6 +12,7 @@ from ...utils.model_utils import crop_img, get_res_list_from_layout_res, clean_v
 from ...utils.ocr_utils import merge_det_boxes, update_det_boxes, sorted_boxes
 from ...utils.ocr_utils import get_adjusted_mfdetrec_res, get_ocr_result_list, OcrConfidence, get_rotate_crop_image
 from ...utils.pdf_image_tools import get_crop_np_img
+from ...utils.vietnamese_postprocess import postprocess_ocr_text
 
 YOLO_LAYOUT_BASE_BATCH_SIZE = 4
 MFD_BASE_BATCH_SIZE = 4
@@ -19,6 +20,81 @@ MFR_BASE_BATCH_SIZE = 32
 OCR_DET_BASE_BATCH_SIZE = 32
 TABLE_ORI_CLS_BATCH_SIZE = 32
 TABLE_Wired_Wireless_CLS_BATCH_SIZE = 32
+
+
+def _count_text_box_directions(dt_boxes):
+    horizontal_count = 0
+    vertical_count = 0
+    for box_ocr_res in dt_boxes or []:
+        p1, _, p3, _ = box_ocr_res
+        width = abs(float(p3[0]) - float(p1[0]))
+        height = abs(float(p3[1]) - float(p1[1]))
+        if width > height * 1.1:
+            horizontal_count += 1
+        elif height > width * 1.1:
+            vertical_count += 1
+    return horizontal_count, vertical_count
+
+
+def _rotate_image_by_label(image, label):
+    if label == "cw":
+        return cv2.rotate(np.asarray(image), cv2.ROTATE_90_CLOCKWISE)
+    if label == "ccw":
+        return cv2.rotate(np.asarray(image), cv2.ROTATE_90_COUNTERCLOCKWISE)
+    return np.asarray(image)
+
+
+def _pick_best_table_orientation(det_ocr_engine, table_res_dict):
+    table_img = np.asarray(table_res_dict["table_img"])
+    h, w = table_img.shape[:2]
+    aspect_ratio = (h / w) if w > 0 else 1.0
+
+    base_bgr = cv2.cvtColor(table_img, cv2.COLOR_RGB2BGR)
+    base_dt_boxes = det_ocr_engine.ocr(base_bgr, rec=False)[0] or []
+    base_horizontal, base_vertical = _count_text_box_directions(base_dt_boxes)
+
+    should_try_rotations = (
+        aspect_ratio > 1.2
+        or len(base_dt_boxes) == 0
+        or base_vertical > base_horizontal
+    )
+    if not should_try_rotations:
+        return base_bgr, base_dt_boxes
+
+    candidates = [("base", table_img, table_res_dict["wired_table_img"], base_dt_boxes)]
+    for rotate_label in ("cw", "ccw"):
+        rotated_table_img = _rotate_image_by_label(table_img, rotate_label)
+        rotated_bgr = cv2.cvtColor(rotated_table_img, cv2.COLOR_RGB2BGR)
+        rotated_dt_boxes = det_ocr_engine.ocr(rotated_bgr, rec=False)[0] or []
+        rotated_wired_img = _rotate_image_by_label(
+            table_res_dict["wired_table_img"], rotate_label
+        )
+        candidates.append(
+            (rotate_label, rotated_table_img, rotated_wired_img, rotated_dt_boxes)
+        )
+
+    def candidate_score(candidate):
+        _, _, _, dt_boxes = candidate
+        horizontal_count, vertical_count = _count_text_box_directions(dt_boxes)
+        return (
+            horizontal_count - vertical_count,
+            horizontal_count,
+            len(dt_boxes),
+            -vertical_count,
+        )
+
+    best_label, best_table_img, best_wired_img, best_dt_boxes = max(
+        candidates, key=candidate_score
+    )
+    if best_label != "base":
+        table_res_dict["table_img"] = best_table_img
+        table_res_dict["wired_table_img"] = best_wired_img
+        logger.debug(
+            f"Rotated table selected via OCR-det fallback: {best_label}, boxes={len(best_dt_boxes)}"
+        )
+
+    best_bgr = cv2.cvtColor(np.asarray(table_res_dict["table_img"]), cv2.COLOR_RGB2BGR)
+    return best_bgr, best_dt_boxes
 
 class BatchAnalyze:
     def __init__(self, model_manager, batch_ratio: int, formula_enable, table_enable, enable_ocr_det_batch: bool = True):
@@ -146,8 +222,9 @@ class BatchAnalyze:
             )
             for index, table_res_dict in enumerate(tqdm(table_res_list_all_page, desc="Table-ocr det")):
                 _lang = table_res_dict['lang']  # Fix scope: Use from dict
-                bgr_image = cv2.cvtColor(table_res_dict["table_img"], cv2.COLOR_RGB2BGR)
-                ocr_result = det_ocr_engine.ocr(bgr_image, rec=False)[0]
+                bgr_image, ocr_result = _pick_best_table_orientation(
+                    det_ocr_engine, table_res_dict
+                )
                 # 构造需要 OCR 识别的图片字典，包括cropped_img, dt_box, table_id，并按照语言进行分组
                 for dt_box in ocr_result:
                     rec_img_lang_group[_lang].append({
@@ -176,13 +253,16 @@ class BatchAnalyze:
                     continue
                 ocr_res_list = ocr_res_list[0] if len(ocr_res_list) > 0 else []  # Fix: Safe access [0]
                 for img_dict, ocr_res in zip(rec_img_list, ocr_res_list):
+                    ocr_text = postprocess_ocr_text(
+                        ocr_res[0], lang=_lang, score=ocr_res[1], table_cell=True
+                    )
                     if table_res_list_all_page[img_dict["table_id"]].get("ocr_result"):
                         table_res_list_all_page[img_dict["table_id"]]["ocr_result"].append(
-                            [img_dict["dt_box"], html.escape(ocr_res[0]), ocr_res[1]]
+                            [img_dict["dt_box"], html.escape(ocr_text), ocr_res[1]]
                         )
                     else:
                         table_res_list_all_page[img_dict["table_id"]]["ocr_result"] = [
-                            [img_dict["dt_box"], html.escape(ocr_res[0]), ocr_res[1]]
+                            [img_dict["dt_box"], html.escape(ocr_text), ocr_res[1]]
                         ]
 
             clean_vram(self.model.device, vram_threshold=8)
@@ -359,6 +439,9 @@ class BatchAnalyze:
                     f'ocr_res_list: {len(ocr_res_list)}, need_ocr_list: {len(need_ocr_lists_by_lang[lang])} for lang: {lang}'
                 for index, layout_res_item in enumerate(need_ocr_lists_by_lang[lang]):
                     ocr_text, ocr_score = ocr_res_list[index]
+                    ocr_text = postprocess_ocr_text(
+                        ocr_text, lang=lang, score=ocr_score, table_cell=False
+                    )
                     layout_res_item['text'] = ocr_text
                     layout_res_item['score'] = float(f"{ocr_score:.3f}")
                     if ocr_score < OcrConfidence.min_confidence:

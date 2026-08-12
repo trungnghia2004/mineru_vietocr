@@ -127,6 +127,14 @@ def get_llm_aided_config():
 
 
 def get_local_models_dir():
+    pipeline_dir = os.getenv('MINERU_LOCAL_MODELS_DIR_PIPELINE')
+    vlm_dir = os.getenv('MINERU_LOCAL_MODELS_DIR_VLM')
+    if pipeline_dir or vlm_dir:
+        return {
+            'pipeline': pipeline_dir,
+            'vlm': vlm_dir,
+        }
+
     config = read_config()
     if config is None:
         return None

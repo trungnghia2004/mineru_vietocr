@@ -6,12 +6,12 @@ with open("README.md", "r", encoding="utf-8") as fh:
 setuptools.setup(
     name="vietocr",
     version="0.3.13",
-    author="pbcquoc",
-    author_email="pbcquoc@gmail.com",
+    author="",
+    author_email="",
     description="Transformer base text detection",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/pbcquoc/vietocr",
+    url="",
     packages=setuptools.find_packages(),
     install_requires=[
         "einops>=0.2.0",

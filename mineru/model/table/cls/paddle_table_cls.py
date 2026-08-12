@@ -14,15 +14,33 @@ from mineru.utils.models_download_utils import auto_download_and_get_model_root_
 
 class PaddleTableClsModel:
     def __init__(self):
-        self.sess = onnxruntime.InferenceSession(
-            os.path.join(auto_download_and_get_model_root_path(ModelPath.paddle_table_cls), ModelPath.paddle_table_cls)
-        )
         self.less_length = 256
         self.cw, self.ch = 224, 224
         self.std = [0.229, 0.224, 0.225]
         self.scale = 0.00392156862745098
         self.mean = [0.485, 0.456, 0.406]
         self.labels = [AtomicModel.WiredTable, AtomicModel.WirelessTable]
+        self.available = True
+        self.sess = None
+
+        model_path = os.path.join(
+            auto_download_and_get_model_root_path(ModelPath.paddle_table_cls),
+            ModelPath.paddle_table_cls,
+        )
+        try:
+            self.sess = onnxruntime.InferenceSession(model_path)
+        except Exception as exc:
+            self.available = False
+            logger.warning(
+                "Failed to load table classification model from {}: {}. "
+                "Falling back to wireless table recognition only.",
+                model_path,
+                exc,
+            )
+
+    def _set_default_prediction(self, img_info):
+        img_info["table_res"]["cls_label"] = AtomicModel.WirelessTable
+        img_info["table_res"]["cls_score"] = 1.0
 
     def preprocess(self, input_img):
         # 放大图片，使其最短边长为256
@@ -62,6 +80,8 @@ class PaddleTableClsModel:
         return x
 
     def predict(self, input_img):
+        if not self.available:
+            return AtomicModel.WirelessTable, 1.0
         if isinstance(input_img, Image.Image):
             np_img = np.asarray(input_img)
         elif isinstance(input_img, np.ndarray):
@@ -131,6 +151,10 @@ class PaddleTableClsModel:
         x = np.stack(res_imgs, axis=0).astype(dtype=np.float32, copy=False)
         return x
     def batch_predict(self, img_info_list, batch_size=16):
+        if not self.available:
+            for img_info in img_info_list:
+                self._set_default_prediction(img_info)
+            return
         imgs = [item["wired_table_img"] for item in img_info_list]
         imgs = self.list_2_batch(imgs, batch_size=batch_size)
         label_res = []

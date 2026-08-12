@@ -253,7 +253,7 @@ class PaddleOrientationClsModel:
                 for img_batch in imgs:
                     x = self.batch_preprocess(img_batch)
                     results = self.sess.run(None, {"x": x})
-                    for img_info, res in zip(rotated_imgs, results[0]):
+                    for img_info, res in zip(img_batch, results[0]):
                         label = self.labels[np.argmax(res)]
                         if label == "270":
                             img_info["table_img"] = cv2.rotate(

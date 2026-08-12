@@ -1,6 +1,5 @@
 """
-This code is refered from:
-https://github.com/WenmuZhou/DBNet.pytorch/blob/master/post_processing/seg_detector_representer.py
+This code is adapted from an upstream DBNet-style post-processing implementation.
 """
 from __future__ import absolute_import
 from __future__ import division

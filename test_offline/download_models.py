@@ -11,11 +11,14 @@ from huggingface_hub import snapshot_download
 import os
 import sys
 import urllib.request
+from pathlib import Path
 
 # Configuration
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPO_ROOT = SCRIPT_DIR.parent
 PIPELINE_REPO = "opendatalab/PDF-Extract-Kit-1.0"
-LOCAL_MODELS_DIR = "./models_cache/pipeline"
-TORCH_MODELS_DIR = "../torch_models/checkpoints"
+LOCAL_MODELS_DIR = REPO_ROOT / "models_cache" / "pipeline"
+TORCH_MODELS_DIR = REPO_ROOT / "torch_models" / "checkpoints"
 
 # PyTorch model for VietOCR backbone
 PYTORCH_VGG19_URL = "https://download.pytorch.org/models/vgg19_bn-c79401a0.pth"
@@ -43,11 +46,11 @@ def download_pytorch_model():
     # Create directory
     os.makedirs(TORCH_MODELS_DIR, exist_ok=True)
     
-    output_path = os.path.join(TORCH_MODELS_DIR, PYTORCH_VGG19_FILE)
+    output_path = TORCH_MODELS_DIR / PYTORCH_VGG19_FILE
     
     # Check if already exists
-    if os.path.exists(output_path):
-        file_size = os.path.getsize(output_path) / (1024 * 1024)
+    if output_path.exists():
+        file_size = output_path.stat().st_size / (1024 * 1024)
         print(f"\n✓ VGG19 model already exists: {output_path}")
         print(f"  Size: {file_size:.1f} MB")
         return
@@ -64,7 +67,7 @@ def download_pytorch_model():
             total_mb = total_size / (1024 * 1024)
             print(f"\rProgress: {percent:.1f}% ({downloaded_mb:.1f}/{total_mb:.1f} MB)", end='', flush=True)
         
-        urllib.request.urlretrieve(PYTORCH_VGG19_URL, output_path, reporthook=progress_hook)
+        urllib.request.urlretrieve(PYTORCH_VGG19_URL, str(output_path), reporthook=progress_hook)
         print("\n\n✓ PyTorch VGG19 model downloaded successfully!")
         
     except Exception as e:
@@ -102,7 +105,7 @@ def main():
         # Download all pipeline models at once
         cache_dir = snapshot_download(
             repo_id=PIPELINE_REPO,
-            local_dir=LOCAL_MODELS_DIR,
+            local_dir=str(LOCAL_MODELS_DIR),
             local_dir_use_symlinks=False,
             allow_patterns=patterns,
             resume_download=True,
@@ -126,7 +129,7 @@ def main():
     try:
         download_pytorch_model()
     except Exception as e:
-        print("\n⚠ Warning: PyTorch model download failed")
+        print("\nWarning: PyTorch model download failed")
         print("The Docker build will fail without this model.")
         sys.exit(1)
     

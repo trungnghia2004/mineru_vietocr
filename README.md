@@ -66,7 +66,7 @@ pip install -r requirements.txt
 
 1. **Clone the repository**:
    ```bash
-   git clone https://github.com/nghiado905/mineru_vietocr
+   Sao chep ma nguon vao may va mo thu muc du an local.
    cd mineru_vietocr
    ```
 
@@ -287,8 +287,7 @@ python test.py
 3. **CUDA Errors**: Check GPU compatibility and drivers
 
 ### Getting Help
-- Check the [MinerU documentation](https://github.com/opendatalab/MinerU)
-- Review [VietOCR documentation](https://github.com/pbcquoc/vietocr)
+- Check the local MinerU and VietOCR source bundled in this workspace.
 - Open an issue for bugs or feature requests
 
 ## 📄 License

@@ -199,12 +199,13 @@
                 loading.style.display = 'none';
                 processingText.style.display = 'none';
 
-                if (data.status === 'success') {
+                if (data.status === 'success' && data.files && Object.keys(data.files).length > 0) {
                     outputData = data.files[Object.keys(data.files)[0]]; // Lưu dữ liệu
                     outputButtons.style.display = 'block';
                     showOutput('markdown'); // Hiển thị mặc định
                 } else {
-                    outputContent.innerHTML = '<p style="color: red;">Xử lý thất bại: ' + data.message + '</p>';
+                    const errorMessage = data.message || data.detail || 'Không nhận được dữ liệu đầu ra hợp lệ.';
+                    outputContent.innerHTML = '<p style="color: red;">Xử lý thất bại: ' + errorMessage + '</p>';
                     outputContent.style.display = 'block';
                 }
             } catch (error) {

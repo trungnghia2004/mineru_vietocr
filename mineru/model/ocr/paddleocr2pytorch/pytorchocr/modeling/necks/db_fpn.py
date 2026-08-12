@@ -396,8 +396,7 @@ class LKPAN(nn.Module):
 
 class ASFBlock(nn.Module):
     """
-    This code is refered from:
-        https://github.com/MhLiao/DB/blob/master/decoders/feature_attention.py
+    This code is adapted from an upstream DB feature-attention implementation.
     """
 
     def __init__(self, in_channels, inter_channels, out_features_num=4):

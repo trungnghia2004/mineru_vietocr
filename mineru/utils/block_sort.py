@@ -176,6 +176,39 @@ def insert_lines_into_block(block_bbox, line_height, page_w, page_h):
         return [[x0, y0, x1, y1]]
 
 
+def predict_reading_order(boxes: List[List[int]], page_w: int, page_h: int) -> List[int]:
+    if len(boxes) <= 1:
+        return list(range(len(boxes)))
+    if len(boxes) > 200:
+        return list(range(len(boxes)))
+    if page_w <= 0 or page_h <= 0:
+        return list(range(len(boxes)))
+
+    x_scale = 1000 / page_w
+    y_scale = 1000 / page_h
+    scaled_boxes = []
+    for box in boxes:
+        left, top, right, bottom = [int(round(float(v))) for v in box[:4]]
+        left = max(0, min(1000, round(left * x_scale)))
+        top = max(0, min(1000, round(top * y_scale)))
+        right = max(0, min(1000, round(right * x_scale)))
+        bottom = max(0, min(1000, round(bottom * y_scale)))
+        if right < left:
+            left, right = right, left
+        if bottom < top:
+            top, bottom = bottom, top
+        scaled_boxes.append([left, top, right, bottom])
+
+    model_manager = ModelSingleton()
+    model = model_manager.get_model('layoutreader')
+    with torch.no_grad():
+        orders = do_predict(scaled_boxes, model)
+
+    if len(orders) != len(boxes) or len(set(orders)) != len(boxes):
+        raise ValueError("Layout reader returned an invalid reading order.")
+    return orders
+
+
 def model_init(model_name: str):
     from transformers import LayoutLMv3ForTokenClassification
     device_name = get_device()

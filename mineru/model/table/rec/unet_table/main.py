@@ -14,8 +14,10 @@ from bs4 import BeautifulSoup
 
 from .table_structure_unet import TSRUnet
 
+from mineru.utils.block_sort import predict_reading_order
 from mineru.utils.enum_class import ModelPath
 from mineru.utils.models_download_utils import auto_download_and_get_model_root_path
+from mineru.utils.vietnamese_postprocess import postprocess_ocr_text
 from .table_recover import TableRecover
 from .utils import InputType, LoadImage, VisTable
 from .utils_table_recover import (
@@ -138,6 +140,15 @@ class WiredTableRecognition:
 
     def sort_and_gather_ocr_res(self, res):
         for i, dict_res in enumerate(res):
+            cell_boxes = [ocr_det[0] for ocr_det in dict_res["t_ocr_res"]]
+            if len(cell_boxes) > 1:
+                try:
+                    page_w = max(int(box[2]) for box in cell_boxes) + 1
+                    page_h = max(int(box[3]) for box in cell_boxes) + 1
+                    orders = predict_reading_order(cell_boxes, page_w, page_h)
+                    dict_res["t_ocr_res"] = [dict_res["t_ocr_res"][j] for j in orders]
+                except Exception as exc:
+                    logger.debug(f"LayoutLMv3 cell OCR ordering skipped: {exc}")
             _, sorted_idx = sorted_ocr_boxes(
                 [ocr_det[0] for ocr_det in dict_res["t_ocr_res"]], threhold=0.3
             )
@@ -215,6 +226,9 @@ class WiredTableRecognition:
             for i, box, ocr_res in img_crop_info_list:
                 # 处理ocr结果
                 ocr_text, ocr_score = ocr_res
+                ocr_text = postprocess_ocr_text(
+                    ocr_text, lang="vi", score=ocr_score, table_cell=True
+                )
                 # logger.debug(f"OCR result for box {i}: {ocr_text} with score {ocr_score}")
                 if ocr_score < 0.6 or ocr_text in ['1','口','■','（204号', '（20', '（2', '（2号', '（20号', '号', '（204']:
                     # logger.warning(f"Low confidence OCR result for box {i}: {ocr_text} with score {ocr_score}")
@@ -262,7 +276,15 @@ class UnetTableModel:
         if ocr_result is None:
             ocr_result = self.ocr_engine.ocr(bgr_img)[0]
             ocr_result = [
-                [item[0], escape_html(item[1][0]), item[1][1]]
+                [
+                    item[0],
+                    escape_html(
+                        postprocess_ocr_text(
+                            item[1][0], lang="vi", score=item[1][1], table_cell=True
+                        )
+                    ),
+                    item[1][1],
+                ]
                 for item in ocr_result
                 if len(item) == 2 and isinstance(item[1], tuple)
             ]
